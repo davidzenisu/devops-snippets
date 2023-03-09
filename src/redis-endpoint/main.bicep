@@ -1,6 +1,8 @@
 param privateEndpointSubnetId string
 param vnetID string
 param redisCacheName string
+param location string = resourceGroup().location
+
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2018-09-01' = {
   name:  'privatelink.redis.cache.windows.net'
   location: 'global'
@@ -19,7 +21,7 @@ resource privateDnsZoneVNetLink 'Microsoft.Network/privateDnsZones/virtualNetwor
 
 resource redisCache 'Microsoft.Cache/redis@2021-06-01' = {
   name: redisCacheName
-  location: resourceGroup().location
+  location: location
   tags: {
     deployment: 'bicep'
   }
@@ -43,7 +45,7 @@ resource redisCache 'Microsoft.Cache/redis@2021-06-01' = {
 
 resource redisCachePrivateEndpoint 'Microsoft.Network/privateEndpoints@2021-05-01' = {
   name: 'redisendpoint'
-  location: resourceGroup().location
+  location: location
   properties: {
     subnet: {
       id: privateEndpointSubnetId
@@ -71,7 +73,7 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
         name: 'privatelink_redis_cache_windows_net'
         properties: {
           privateDnsZoneId: privateDnsZone.id
-      }
+        }
       }
     ]
   }
