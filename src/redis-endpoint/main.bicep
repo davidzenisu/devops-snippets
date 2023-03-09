@@ -1,7 +1,13 @@
-param privateEndpointSubnetId string
-param vnetID string
 param redisCacheName string
+param vnetName string
+param subnetName string
 param location string = resourceGroup().location
+
+
+// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-services-resource-providers
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/resource-provider-operations
+var vnetResourceType = 'Microsoft.Network/virtualNetworks'
+var subnetResourceType = '${vnetResourceType}/subnets'
 
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2018-09-01' = {
   name:  'privatelink.redis.cache.windows.net'
@@ -14,7 +20,7 @@ resource privateDnsZoneVNetLink 'Microsoft.Network/privateDnsZones/virtualNetwor
   properties: {
       registrationEnabled: false
       virtualNetwork: {
-          id: vnetID
+          id:   resourceId(vnetResourceType, vnetName)
       }
   }
 }
@@ -48,7 +54,7 @@ resource redisCachePrivateEndpoint 'Microsoft.Network/privateEndpoints@2021-05-0
   location: location
   properties: {
     subnet: {
-      id: privateEndpointSubnetId
+      id: resourceId(subnetResourceType, vnetName, subnetName)
     }
     privateLinkServiceConnections: [
       {
