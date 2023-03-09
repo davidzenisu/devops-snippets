@@ -1,6 +1,21 @@
 param privateEndpointSubnetId string
 param vnetID string
 param redisCacheName string
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2018-09-01' = {
+  name:  'privatelink.redis.cache.windows.net'
+  location: 'global'
+}
+resource privateDnsZoneVNetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
+  parent: privateDnsZone
+  name: uniqueString(resourceGroup().id)
+  location: 'global'
+  properties: {
+      registrationEnabled: false
+      virtualNetwork: {
+          id: vnetID
+      }
+  }
+}
 
 resource redisCache 'Microsoft.Cache/redis@2021-06-01' = {
   name: redisCacheName
@@ -47,18 +62,17 @@ resource redisCachePrivateEndpoint 'Microsoft.Network/privateEndpoints@2021-05-0
   }
 }
 
-resource privateDnsZone 'Microsoft.Network/privateDnsZones@2018-09-01' = {
-  name:  'privatelink.redis.cache.windows.net'
-  location: 'global'
-}
-resource privateDnsZoneVNetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
-  parent: privateDnsZone
-  name: uniqueString(resourceGroup().id)
-  location: 'global'
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2022-07-01' = {
+  name: 'default'
+  parent: redisCachePrivateEndpoint
   properties: {
-      registrationEnabled: false
-      virtualNetwork: {
-          id: vnetID
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink_redis_cache_windows_net'
+        properties: {
+          privateDnsZoneId: privateDnsZone.id
       }
+      }
+    ]
   }
 }
