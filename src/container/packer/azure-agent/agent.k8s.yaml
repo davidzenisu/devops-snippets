@@ -1,0 +1,40 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: azdevops-scaledjob
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+        - name: azdevops-agent-job
+          image: #azpRegistry#.azurecr.io/#azpRespository#
+          imagePullPolicy: Always
+          env:
+          - name: AZP_URL
+            value: #azpUrl#
+          - name: AZP_TOKEN
+            value: #azpToken#
+          - name: AZP_POOL
+            value: #azpPool#
+          - name: AZP_STARTUP
+            value: "--once"
+          volumeMounts:
+          - mountPath: /var/run/docker.sock
+            name: docker-volume
+        volumes:
+        - name: docker-volume
+          hostPath:
+            path: /var/run/docker.sock
+  pollingInterval: 30
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  maxReplicaCount: 10   
+  scalingStrategy:
+    strategy: "default"               
+  triggers:
+  - type: azure-pipelines
+    metadata:
+      poolName: #azpPool#
+      organizationURLFromEnv: "AZP_URL"
+      personalAccessTokenFromEnv: "AZP_TOKEN"
