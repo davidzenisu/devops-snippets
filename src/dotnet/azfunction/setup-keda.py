@@ -9,8 +9,11 @@ if os.path.exists(projectPath):
 print("Init dotnet project")
 subprocess.run(f"func init {projectPath} --dotnet-isolated --force", shell=True)
 os.chdir(projectPath)
+print("Add function")
+subprocess.run("func new --name HttpExample --template \"HTTP trigger\" --authlevel anonymous", shell=True)
+subprocess.run("func new --name TimeExample --template \"Timer trigger\"", shell=True)
 print("Init docker file")
 subprocess.run("func init --docker-only --force", shell=True)
 outputFile = open("keda-agent.yaml", "w")
 # currently not working: https://github.com/Azure/azure-functions-core-tools/pull/3000
-subprocess.call("func kubernetes deploy --name test-project-deployment --registry docker-registry --dry-run", shell=True, stdout=outputFile)
+subprocess.call("func kubernetes deploy --name testname --registry testregistry --dry-run --dotnet-isolated", shell=True, stdout=outputFile)
