@@ -1,0 +1,176 @@
+data:
+  AzureWebJobsStorage: VXNlRGV2ZWxvcG1lbnRTdG9yYWdlPXRydWU=
+  FUNCTIONS_WORKER_RUNTIME: ZG90bmV0LWlzb2xhdGVk
+apiVersion: v1
+kind: Secret
+metadata:
+  name: testname
+---
+data:
+  host.master: YnBNSVpmOTB4WkY1SkZwOExJV2JndnByTzc0YjVZWmc3TG9jc0J5dEdBRVdqN2VNV1pQSFVBPT0=
+  host.function.default: QmdoaWlTOS9wTDdtRUR3eGRRcDdCSDc0LzNDd09GRVE0b0ZVa0pHdHp4cVRhOGkzSUNUUW5BPT0=
+  host.systemKey.default: NWdVdzhzVDNSZURVTlBhMEJKaGpkMUJhWGJWVmd0SW1mVm0yNkp4TXNhZjgycDRpVlVFR3dnPT0=
+  functions.httpexample.default: a0J5TkY2YVZsL1pMYzdmYW1NdXZTMFlQZnBUQkpIYUJFVWt0Uy9zakVENEJzQnQzb3NyanVnPT0=
+apiVersion: v1
+kind: Secret
+metadata:
+  name: func-keys-kube-secret-testname
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testname-function-keys-identity-svc-act
+---
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  - configMaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: functions-keys-manager-role
+---
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: functions-keys-manager-role
+subjects:
+- kind: ServiceAccount
+  name: testname-function-keys-identity-svc-act
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testname-function-keys-identity-svc-act-functions-keys-manager-rolebinding
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testname-http
+spec:
+  selector:
+    app: testname-http
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testname-http
+  labels:
+    app: testname-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: testname-http
+  template:
+    metadata:
+      labels:
+        app: testname-http
+    spec:
+      containers:
+      - name: testname-http
+        image: testregistry/testname:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: AzureFunctionsJobHost__functions__0
+          value: HttpExample
+        - name: AzureWebJobsSecretStorageType
+          value: kubernetes
+        - name: AzureWebJobsKubernetesSecretName
+          value: secrets/func-keys-kube-secret-testname
+        envFrom:
+        - secretRef:
+            name: testname
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 240
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+        startupProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 240
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+      serviceAccountName: testname-function-keys-identity-svc-act
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testname
+  labels:
+    app: testname
+spec:
+  selector:
+    matchLabels:
+      app: testname
+  template:
+    metadata:
+      labels:
+        app: testname
+    spec:
+      containers:
+      - name: testname
+        image: testregistry/testname:latest
+        env:
+        - name: AzureFunctionsJobHost__functions__0
+          value: TimeExample
+        envFrom:
+        - secretRef:
+            name: testname
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 240
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+        startupProbe:
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 240
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+      serviceAccountName: testname-function-keys-identity-svc-act
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: testname
+  labels: {}
+spec:
+  scaleTargetRef:
+    name: testname
+  triggers:
+  - type: timertrigger
+    metadata:
+      direction: In
+      schedule: 0 */5 * * * *
+---
