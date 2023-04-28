@@ -1,1 +1,6 @@
 [Oo]ut/
+
+# files/directories for azurite
+__*__*
+
+.vscode/
