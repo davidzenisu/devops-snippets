@@ -1,0 +1,33 @@
+# inspired by: 
+# https://github.com/Azure/azure-quickstart-templates/tree/master/quickstarts/microsoft.storage/storage-static-website
+# https://github.com/Azure/azure-quickstart-templates/tree/master/quickstarts/microsoft.resources/deployment-script-azcli-graph-azure-ad
+# https://stackoverflow.com/questions/51149262/enable-azure-storagev2-static-website-preview-feature-using-arm-template
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  - name: azureServiceConnectionName
+    displayName: Azure Service Connection Name
+    type: string
+    default: 'Azure - CQ.build - BicepSandbox environment'
+
+steps:
+    - checkout: self
+    - task: AzureCLI@2
+      displayName: 'Deploy storage account with static website'
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnectionName }}
+        scriptType: 'pscore'
+        scriptLocation: inlineScript
+        inlineScript: |
+          az --version
+          az deployment group create `
+            --resource-group rg-cq-bicep-sandbox-we `
+            --template-file '$(Build.SourcesDirectory)/Azure/ARM Templates Sandbox/main.bicep' `
+            --parameters `
+              servicePrincipalClientId=$env:servicePrincipalId `
+              servicePrincipalClientSecret=$env:servicePrincipalKey
+        addSpnToEnvironment: true
