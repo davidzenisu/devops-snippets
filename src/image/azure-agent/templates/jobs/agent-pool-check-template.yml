@@ -1,0 +1,38 @@
+parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: agentResourceGroup
+    displayName: Resource group where agent(s) are deployed to
+    type: string
+  - name: agentPoolName
+    displayName: Name of the agent pool
+    type: string
+
+
+jobs:
+- job: jobCheckAgent
+  displayName: Check Agent Pool ${{ parameters.agentPoolName }}
+  pool:
+    vmImage: ubuntu-latest
+  workspace:
+    clean: resources
+  steps:
+    - checkout: self
+    - task: AzureCLI@2
+      displayName: Check if agent pool ${{ parameters.agentPoolName }} exists
+      name: stepTestAgentPool
+      inputs:
+        azureSubscription: '${{ parameters.serviceConnectionName }}'
+        scriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: $(ScriptPath)/TestAgentPool.ps1
+        arguments:  >
+          -ResourceGroupName "${{ parameters.agentResourceGroup }}"
+          -VmssName "${{ parameters.agentPoolName }}"
+          -ProjectId "$(System.TeamProjectId)"
+          -OrganizationUrl "$(System.CollectionUri)"
+        workingDirectory: $(ScriptPath)
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+        CUSTOM_PAT: $(CustomAccessToken)

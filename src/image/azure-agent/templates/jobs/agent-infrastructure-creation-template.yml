@@ -1,0 +1,103 @@
+parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: imageType
+    displayName: OS of the created image
+    type: string
+  - name: azureLocation
+    displayName: Azure Location where resources will be created
+    type: string
+  - name: agentResourceGroup
+    displayName: esource group where agent(s) are deployed to
+    type: string
+  - name: networkResourceGroupName
+    displayName: Resource group of agent network
+    type: string
+  - name: networkVnetName
+    displayName: Vnet of agent network
+    type: string
+  - name: networkSubnetName
+    displayName: Subnet of agent network
+    type: string
+  - name: keyVaultName
+    displayName: Keyvault to store agent login credentials
+    type: string
+# custom image parameters
+  - name: acgName
+    displayName: Name of Azure Container Registry to store the vhd
+    type: string
+    default: ''
+  # optional dependsOn parameter:
+  - name: dependsOn
+    displayName: Jobs this job depends on
+    type: object
+    default: 
+      - jobCheckAgent
+
+jobs:
+  - job: jobCreateInfrastructure
+    displayName: Create VMSS ${{ parameters.imageType }}
+    dependsOn: 
+      - ${{ each dependsOn in parameters.dependsOn }}:
+        - ${{ dependsOn }}
+    variables:
+      ImageStorageAccount: $[ dependencies.jobCreatePackerImg.outputs['stepFindPackerImg.PackerImageStorageAccount'] ]
+      ImageUri: $[ dependencies.jobCreatePackerImg.outputs['stepFindPackerImg.PackerImageVhd'] ]
+      ImageVersion: $[ dependencies.jobSetPackerImgVersion.outputs['stepSetPackerImgVersion.PackerImageVersion'] ]
+    pool:
+      vmImage: ubuntu-latest
+    workspace:
+      clean: resources
+    steps:
+      - checkout: self
+      - task: AzureCLI@2
+        displayName: Set authentication for agent pool  ${{ parameters.imageType }}
+        name: stepSetSecretAgentPoolVmss
+        inputs:
+          azureSubscription: '${{ parameters.serviceConnectionName }}'
+          scriptType: 'pscore'
+          scriptLocation: 'scriptPath'
+          scriptPath: $(ScriptPath)/SetVirtualMachineAuthentication.ps1
+          ${{ if contains(parameters.imageType, 'Windows') }}:
+            arguments:  >
+              -SecretName "${{ format('vmss-agent-{0}-key', lower(parameters.imageType)) }}"
+              -KeyVaultName "${{ parameters.keyVaultName }}"
+              -PasswordOnly
+          ${{ else }}:
+            arguments:  >
+              -SecretName "${{ format('vmss-agent-{0}-key', lower(parameters.imageType)) }}"
+              -KeyVaultName "${{ parameters.keyVaultName }}"
+          workingDirectory: $(ScriptPath)
+        env:
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      - task: AzureCLI@2
+        displayName: 'Deploy VMSS for agent pool  ${{ parameters.imageType }}'
+        name: stepDeployAgentPoolVmss
+        inputs:
+          azureSubscription: ${{ parameters.serviceConnectionName }}
+          scriptType: 'pscore'
+          scriptLocation: inlineScript
+          inlineScript: |
+            az --version
+            az deployment group create `
+              --resource-group "${{ parameters.agentResourceGroup }}" `
+              --template-file "$(BicepPath)/agent-compute.bicep" `
+              --parameters `
+                deploymentLocation="${{ parameters.azureLocation }}" `
+                imageType="${{ lower(parameters.imageType) }}" `
+                usePredefinedImage=${{ eq(parameters.acgName, '') }} `
+                acgName="${{ parameters.acgName }}" `
+                imageVersion="$(ImageVersion)" `
+                storageAccountName="$(ImageStorageAccount)" `
+                imgageUri="$(ImageUri)" `
+                adminUsername="azureuser" `
+                adminPublicKey="$(stepSetSecretAgentPoolVmss.VirtualMachinePublicKey)" `
+                adminPrivateKey64="$(stepSetSecretAgentPoolVmss.VirtualMachinePrivateKey)" `
+                adminPassword="$(stepSetSecretAgentPoolVmss.VirtualMachinePassword)" `
+                keyVaultName="${{ parameters.keyVaultName }}" `
+                objectId=$env:servicePrincipalId `
+                vnetResourceGroupName="${{ parameters.networkResourceGroupName }}" `
+                virtualNetworkName="${{ parameters.networkVnetName }}" `
+                subnetName="${{ parameters.networkSubnetName }}"   
+          addSpnToEnvironment: true

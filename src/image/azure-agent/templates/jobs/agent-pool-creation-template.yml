@@ -1,0 +1,54 @@
+parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: agentPoolName
+    displayName: Name of the agent pool
+    type: string
+  - name: agentResourceGroup
+    displayName: Resource group where agent(s) are deployed to
+    type: string
+
+jobs:
+  - job: jobCreateAgent
+    displayName: Create Azure DevOps Agent Pool ${{ parameters.agentPoolName }}
+    dependsOn: [jobCheckAgent, jobCreateInfrastructure ]
+    condition: eq(dependencies.jobCheckAgent.outputs['stepTestAgentPool.AgentPoolExists'], 'false')
+    variables:
+      AgentOS: ${{
+          replace(
+            replace(
+              contains(parameters.agentPoolName, 'ubuntu'),
+              True,
+              'Linux'
+            ),
+            False,
+            'Windows'
+          )
+        }}
+    pool:
+      vmImage: ubuntu-latest
+    workspace:
+      clean: resources
+    steps:
+      - checkout: self
+      - task: AzureCLI@2
+        displayName: Create agent pool
+        name: stepCreateAgentPool
+        inputs:
+          azureSubscription: '${{ parameters.serviceConnectionName }}'
+          scriptType: 'pscore'
+          scriptLocation: 'scriptPath'
+          scriptPath: $(ScriptPath)/NewAgentPool.ps1
+          arguments:  >
+            -AgentPoolName "${{ parameters.agentPoolName }}"
+            -VmssName "${{ parameters.agentPoolName }}"
+            -OsType "$(AgentOS)" 
+            -ResourceGroupName "${{ parameters.agentResourceGroup }}"
+            -ProjectId $(System.TeamProjectId) 
+            -ServiceConnectionName "${{ parameters.serviceConnectionName }}"
+            -OrganizationUrl "$(System.CollectionUri)"
+          workingDirectory: $(ScriptPath)
+        env:
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+          CUSTOM_PAT: $(CustomAccessToken)

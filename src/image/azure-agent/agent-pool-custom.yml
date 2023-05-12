@@ -1,0 +1,66 @@
+#TODO: Set parameters here
+parameters:
+  # general parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  # parameters to create image:
+  - name: manualLogin
+    displayName: Manual login required?
+    type: boolean
+    default: false
+  - name: imageType
+    displayName: OS of the created image
+    type: string
+    values:
+      - Ubuntu2204
+      - Ubuntu2004
+      - Ubuntu1804
+      - Windows2022
+      - Windows2019
+  - name: imageCreationAgent
+    displayName: Name of agent that runs image creation. 'MS' for Microsoft-hosted.
+    type: string
+    default: vmss-agent-ubuntuxs
+  # parameters to create infrastructure:
+  - name: azureLocation
+    displayName: Azure Location where resources will be created
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  - name: agentResourceGroup
+    displayName: Resource group where agent(s) are deployed to
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  - name: networkResourceGroupName
+    displayName: Resource group of agent network
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  - name: networkVnetName
+    displayName: Vnet of agent network
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  - name: networkSubnetName
+    displayName: Subnet of agent network
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+  - name: keyVaultName
+    displayName: Keyvault to store agent login credentials
+    type: string
+    default: XXXXXXXXXXXXXXXXXXXXXX
+
+trigger: none
+
+extends:
+  template: templates/agent-pool-custom-template.yml
+  parameters:
+    serviceConnectionName: "${{ parameters.serviceConnectionName }}"
+    manualLogin: "${{ parameters.manualLogin }}"
+    imageType: "${{ parameters.imageType }}"
+    imageCreationAgent: "${{ parameters.imageCreationAgent }}"
+    azureLocation: "${{ parameters.azureLocation }}"
+    agentResourceGroup: "${{ parameters.agentResourceGroup }}"
+    networkResourceGroupName: "${{ parameters.networkResourceGroupName }}"
+    networkVnetName: "${{ parameters.networkVnetName }}"
+    networkSubnetName: "${{ parameters.networkSubnetName }}"
+    keyVaultName: "${{ parameters.keyVaultName }}"

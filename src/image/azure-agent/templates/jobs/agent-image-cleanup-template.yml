@@ -1,0 +1,39 @@
+parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: imageType
+    displayName: OS of the created image
+    type: string
+    values:
+      - Ubuntu2204
+      - Ubuntu2004
+      - Ubuntu1804
+      - Windows2022
+      - Windows2019
+
+jobs:
+- job: jobCleanup
+  displayName: Remove temporary resource group
+  dependsOn: [ jobCreatePackerImg, jobCreateInfrastructure ]
+  #condition: always()
+  condition: eq(1,2)
+  pool:
+    vmImage: ubuntu-latest
+  workspace:
+    clean: resources
+  steps:
+    - checkout: self
+    - task: AzureCLI@2
+      displayName: Remove temporary resource group
+      name: stepCleanup
+      inputs:
+        azureSubscription: '${{ parameters.serviceConnectionName }}'
+        scriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: $(ScriptPath)/RemovePackerResourceGroup.ps1
+        arguments:  >
+          -ImageType "${{ parameters.imageType }}"
+        workingDirectory: $(ScriptPath)
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)

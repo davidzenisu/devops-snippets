@@ -1,0 +1,37 @@
+parameters:
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: resourceGroupName
+    displayName: Name of resource group where the gallery is hosted.
+    type: string
+  - name: galleryName
+    displayName: Name of gallery where the image is hosted.
+    type: string
+  - name: imageName
+    displayName: Name of the image for which to generate a new version.
+    type: string
+
+jobs:
+  - job: jobSetPackerImgVersion
+    dependsOn: jobCheckAgent
+    displayName: Set Image Version
+    pool:
+        vmImage: ubuntu-latest
+    workspace:
+      clean: resources
+    steps:
+      - checkout: self
+      - task: AzureCLI@2
+        displayName: Set Image Version
+        name: stepSetPackerImgVersion
+        inputs:
+          azureSubscription: '${{ parameters.serviceConnectionName }}'
+          scriptType: 'pscore'
+          scriptLocation: 'scriptPath'
+          scriptPath: $(ScriptPath)/SetImageVersion.ps1
+          ScriptArguments:  >
+            -ResourceGroupName "${{ parameters.resourceGroupName }}"
+            -GalleryName "${{ parameters.galleryName }}"
+            -ImageName "${{ parameters.imageName }}"
+          workingDirectory: $(ScriptPath)

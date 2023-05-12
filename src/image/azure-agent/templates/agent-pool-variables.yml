@@ -1,0 +1,18 @@
+parameters:
+  - name: baseDirectory
+    type: string
+    #TODO: Set path to bicep directory here
+    default: '$(Build.SourcesDirectory)/azure/pipelines/agent-pool/image-creation/'
+  - name: imageType
+    type: string
+  - name: acgName
+    type: string
+    default: ''
+
+variables:
+  ScriptPath: ${{ parameters.baseDirectory }}/scripts 
+  BicepPath: ${{ parameters.baseDirectory }}/bicep 
+  ImageType: ${{ parameters.imageType }}
+  ImageName: ${{ format('vm-agent-{0}', lower(parameters.imageType)) }}
+  AgentPoolName: ${{ format('vmss-agent-{0}', lower(parameters.imageType)) }}
+  AcgName: ${{ parameters.acgName }}

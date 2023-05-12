@@ -1,0 +1,81 @@
+parameters:
+  - name: imageCreationAgent
+    displayName: Name of agent that runs image creation. 'MS' for Microsoft-hosted.
+    type: string
+  - name: serviceConnectionName
+    displayName: Azure Resource Manager Service Connection
+    type: string
+  - name: manualLogin
+    displayName: Manual login required?
+    type: boolean
+    default: false
+  - name: imageType
+    displayName: OS of the created image
+    type: string
+    values:
+      - Ubuntu2204
+      - Ubuntu2004
+      - Ubuntu1804
+      - Windows2022
+      - Windows2019
+  - name: azureLocation
+    displayName: Azure Location where resources will be created
+    type: string
+
+jobs:
+  - job: jobCreatePackerImg
+    dependsOn: [ jobCheckAgent ]
+    timeoutInMinutes: 600
+    displayName: Create packer image on dedicated self-hosted agent
+    pool:
+      ${{ if eq(parameters.imageCreationAgent, 'MS') }}:
+        vmImage: ubuntu-latest
+      ${{ else }}:
+        name: ${{ parameters.imageCreationAgent }}
+    workspace:
+      clean: resources
+    steps:
+      - checkout: self
+      - script: |
+          chmod -R +x $(ScriptPath)
+        displayName: Enable permission to execute scripts on agent
+      - script: $(ScriptPath)/install-requirements.sh
+        displayName: Install required software (not necessary on Microsoft-hosted agents)
+      - script: |
+          git clone https://github.com/actions/runner-images.git
+        displayName: Clone github repository to workspace
+      - ${{ if contains(parameters.imageType, 'Windows') }}:
+        - task: PowerShell@2
+          inputs:
+            targetType: 'filePath'
+            filePath: $(ScriptPath)/AddExcludeMdeAutoProvisioningTag.ps1
+            arguments: -PackerConfigFilePath "${{ format('$(System.DefaultWorkingDirectory)/runner-images/images/win/{0}.json', lower(parameters.imageType)) }}"
+            workingDirectory: $(ScriptPath)   
+          displayName: 'Workaround to disable Windows Defender for Endpoint' # see https://github.com/actions/runner-images/discussions/6251
+      - task: AzureCLI@2
+        displayName: Run packer configuration
+        inputs:
+          azureSubscription: '${{ parameters.serviceConnectionName }}'
+          scriptType: 'pscore'
+          scriptLocation: 'scriptPath'
+          addSpnToEnvironment: ${{ not(parameters.manualLogin) }}
+          scriptPath: $(ScriptPath)/RunPackerConfiguration.ps1
+          arguments:  >
+            -ImageType "${{ parameters.imageType }}"
+            -AzureLocation "${{ parameters.azureLocation }}"
+            -ImageGenerationRepositoryRoot "$(System.DefaultWorkingDirectory)/runner-images"
+            -AzureClientId $env:servicePrincipalId
+            -AzureClientSecret $env:servicePrincipalKey
+            -ManualLogin $${{ parameters.manualLogin }}   
+          workingDirectory: $(ScriptPath)
+      - task: AzureCLI@2
+        displayName: Find Packer Image
+        name: stepFindPackerImg
+        inputs:
+          azureSubscription: '${{ parameters.serviceConnectionName }}'
+          scriptType: 'pscore'
+          scriptLocation: 'scriptPath'
+          scriptPath: $(ScriptPath)/FindPackerImageFile.ps1
+          ScriptArguments:  >
+            -ImageType "${{ parameters.imageType }}"
+          workingDirectory: $(ScriptPath)
