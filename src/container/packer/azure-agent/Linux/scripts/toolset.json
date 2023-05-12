@@ -1,0 +1,74 @@
+{
+    "powershellModules": [
+        {"name": "MarkdownPS"},
+        {"name": "Microsoft.Graph"},
+        {"name": "Pester"},
+        {"name": "PSScriptAnalyzer"}
+    ],
+    "azureModules": [
+        {
+            "name": "az",
+            "url" : "https://raw.githubusercontent.com/Azure/az-ps-module-versions/main/versions-manifest.json",
+            "versions": [
+                "9.2.0"
+            ],
+            "zip_versions": [
+            ]
+        }
+    ],
+    "apt": [
+        "apt-transport-https",
+        "apt-utils",
+        "autoconf",
+        "automake",
+        "ca-certificates",
+        "coreutils",
+        "curl",
+        "dpkg",
+        "fakeroot",
+        "git",
+        "iputils-ping",
+        "jq",
+        "libssl-dev",
+        "locales",
+        "lsb-core",
+        "lsb-release",
+        "openssh-client",
+        "pkg-config",
+        "python-is-python3",
+        "rpm",
+        "software-properties-common",
+        "ssh",
+        "subversion",
+        "sudo",
+        "tar",
+        "telnet",
+        "time",
+        "unzip",
+        "wget",
+        "zip"
+    ],
+    "dotnet": {
+        "aptPackages": [
+            "dotnet-sdk-6.0",
+            "dotnet-sdk-7.0"
+        ]
+    },
+    "node": {
+        "version": "16",
+        "modules": [ 
+            "grunt", 
+            "gulp", 
+            "n", 
+            "nx", 
+            "parcel",
+            "typescript",
+            "webpack",
+            "webpack-cli",
+            "yarn"
+        ]
+    },
+    "pwsh": {
+        "version": "7.2"
+    }
+}
