@@ -1,0 +1,37 @@
+trigger: none
+
+parameters:
+  - name: agentType
+    displayName: Agent Type
+    type: string
+    values:
+      - Linux
+      - Windows
+    default: Linux
+  - name: imageVersion
+    displayName: Set major and minor version of the image
+    type: string
+    default: 1.0
+  - name: deploymentOnly
+    displayName: Deploy Kubernetes Configuration changes only
+    type: boolean
+    default: false
+
+pool:
+  vmImage: ubuntu-latest
+
+extends:
+  template: ../create.keda.agent.template.yaml
+  parameters:
+    # deployment parameters
+    agentType: ${{ parameters.agentType }}
+    imageVersion: ${{ parameters.imageVersion }}
+    deploymentOnly: ${{ parameters.deploymentOnly }}
+    # static parameters
+    dockerRegistryConnection: cr-devops
+    imageRegistry: devopsagent
+    imageRepository: ${{ format('kedaagent{0}', lower(parameters.agentType)) }}
+    armServiceConnection: arm-devops
+    agentResourceGroup: rg-devops
+    agentKubernetesCluster: aks-devops-agent
+    agentPool: ${{ format('kedaagent{0}', lower(parameters.agentType)) }}

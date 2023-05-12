@@ -1,0 +1,148 @@
+parameters:
+  # deployment parameters
+  - name: agentType
+    type: string
+    values:
+      - Linux
+      - Windows
+    default: Linux
+  - name: imageVersion
+    type: string
+    default: 1.0
+  - name: deploymentOnly
+    type: boolean
+    default: false
+  # static parameters
+  - name: dockerRegistryConnection
+    type: string
+  - name: imageRegistry
+    type: string
+  - name: imageRepository
+    type: string
+  - name: armServiceConnection
+    type: string
+  - name: agentResourceGroup
+    type: string
+  - name: agentKubernetesCluster
+    type: string
+  - name: agentPool
+    type: string
+
+variables:
+  workspace: Azure/Agents/
+  versionMajorMinor: ${{ parameters.imageVersion }}
+  versionPatch: $[counter(variables['versionMajorMinor'], 0)]
+  versionTag: 'v$(versionMajorMinor).$(versionPatch).$(Build.BuildId)'   
+  # Kubernetes manifest variables
+  #azpUrl: $(System.CollectionUri)
+  azpUrl: https://dev.azure.com/ccscandy #workaround because legacy url is used
+  azpPool: ${{ parameters.agentPool }}
+  azpRegistry: ${{ parameters.imageRegistry }}
+  azpRespository: ${{ parameters.imageRepository }}
+  azpTag: $(versionTag)
+  # azpToken is required as secret variable!
+
+jobs:
+  - job: setupInfrastructure
+    displayName: Deploy Agent Pool Infrastructure
+    condition: ${{ eq(parameters.deploymentOnly, false) }}
+    steps:
+      - script: echo Run bicep script here
+  - job: dockerImage
+    displayName: Create Agent Docker Image
+    dependsOn: setupInfrastructure
+    condition: |
+      and
+      (
+        ${{ eq(parameters.deploymentOnly, false) }},
+        in(dependencies.setupInfrastructure.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+      )
+    steps:
+    - task: Docker@2
+      displayName: Create Agent Docker Image
+      inputs:
+        containerRegistry: ${{ parameters.dockerRegistryConnection }}
+        repository: $(azpRespository)
+        command: 'buildAndPush'
+        Dockerfile: '$(workspace)/${{ parameters.agentType }}/Dockerfile'
+        # always set latest in addition to current tag
+        tags: |
+          $(versionTag)
+          latest
+  - job: deployDummyAgent
+    displayName: Deploy Dummy Agent to Pool
+    dependsOn: dockerImage
+    condition: in(dependencies.dockerImage.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')     
+    steps:
+    - task: Docker@2
+      displayName: Login to ACR
+      inputs:
+        containerRegistry: ${{ parameters.dockerRegistryConnection }}
+        command: login
+    - task: Docker@2
+      displayName: Create Dummy Agent
+      inputs:
+        command: run
+        arguments: >
+          -e AZP_URL=$(azpUrl)
+          -e AZP_TOKEN=$(azpToken)
+          -e AZP_POOL=$(azpPool)
+          -e AZP_AGENT_NAME=Keda_Placeholder
+          -e AZP_STARTUP=--once
+          -e AZP_PLACEHOLDER=true
+          $(azpRegistry).azurecr.io/$(azpRespository):latest
+  - job: deployK8sManifest
+    displayName: Deploy Manifest to AKS
+    dependsOn: dockerImage
+    condition: in(dependencies.dockerImage.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')     
+    steps:
+    - template: create.keda.agent.kubelogin.template.yaml
+      parameters:
+        serviceConnection: ${{ parameters.armServiceConnection }}
+        resourceGroup: ${{ parameters.agentResourceGroup }}
+        aksCluster: ${{ parameters.agentKubernetesCluster }}
+    # Set connection type to none so it will keep the current context!
+    - task: Kubernetes@1
+      displayName: Run Keda ManifestKubernetes
+      inputs:
+        connectionType: 'None'
+        # connectionType: 'Azure Resource Manager'
+        # azureSubscriptionEndpoint: '${{ parameters.armServiceConnection }}'
+        # azureResourceGroup: '${{ parameters.agentResourceGroup }}'
+        # kubernetesCluster: '${{ parameters.agentKubernetesCluster }}'
+        command: 'apply'
+        arguments: '-f https://github.com/kedacore/keda/releases/download/v2.10.0/keda-2.10.0.yaml'
+        secretType: 'dockerRegistry'
+        containerRegistryType: 'Azure Container Registry'
+    - task: replacetokens@5
+      displayName: Replace Yaml Tokens
+      inputs:
+        rootDirectory: $(workspace)
+        targetFiles: agent.k8s.yaml
+        encoding: 'auto'
+        tokenPattern: 'custom'
+        tokenPrefix: '#'
+        tokenSuffix: '#'
+        writeBOM: true
+        actionOnMissing: 'warn'
+        keepToken: false
+        actionOnNoFiles: 'continue'
+        enableTransforms: false
+        enableRecursion: false
+        useLegacyPattern: false
+        enableTelemetry: true
+    - task: KubernetesManifest@1
+      displayName: Run AKS Manifest
+      inputs:
+        action: 'deploy'
+        connectionType: None
+        # connectionType: 'Azure Resource Manager'
+        # azureSubscriptionEndpoint: '${{ parameters.armServiceConnection }}'
+        # azureResourceGroup: '${{ parameters.agentResourceGroup }}'
+        # kubernetesCluster: '${{ parameters.agentKubernetesCluster }}'
+        namespace: 'default'
+        manifests: '$(workspace)/agent.k8s.yaml'
+        ${{ if eq(parameters.deploymentOnly, false) }}:
+          containers: '$(acrurl)/$(acrRepoName):$(azpTag)'
+        ${{ else }}:
+          containers: '$(acrurl)/$(acrRepoName):latest'

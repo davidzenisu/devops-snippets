@@ -1,0 +1,55 @@
+# ==========================
+# Kubelogin Template:
+# ==========================
+# Template to login to an Azure Kubernetes cluster using kubelogin
+# Current required when using "Azure AD authentication with Azure RBAC"
+# ==========================
+# Prerequisites:
+# ==========================
+# Make sure the ARM service connection is assigned the required role on the AKS cluster
+# https://learn.microsoft.com/en-gb/azure/aks/concepts-identity#built-in-roles
+# ==========================
+# Resources:
+# ==========================
+# Install kubelogin: https://github.com/actions/runner-images/issues/1746#issuecomment-705507924  
+# Login non-interactive: https://learn.microsoft.com/en-gb/azure/aks/managed-azure-ad#non-interactive-sign-in-with-kubelogin
+# Provide environment variables: https://azure.github.io/kubelogin/concepts/login-modes/sp.html
+# Generally good blog post: https://devblogs.microsoft.com/devops/service-connection-guidance-for-aks-customers-using-kubernetes-tasks/
+
+parameters:
+- name: serviceConnection
+  displayName: 'ARM Service Connection'
+  type: string
+- name: aksCluster
+  displayName: 'Name of the AKS cluster'
+  type: string
+- name: resourceGroup
+  displayName: 'Resource group of the AKS cluster'
+  type: string
+
+steps:
+    # Step 1: Install kubelogin
+    - bash: |
+        sudo az aks install-cli
+      displayName: Install kubelogin
+    # Step 2: Export variables to login later 
+    # (see https://github.com/microsoft/azure-pipelines-tasks/issues/15802#issuecomment-1017942138)
+    - task: AzureCLI@2
+      displayName: Set kubelogin authentication
+      inputs:
+        azureSubscription: ${{ parameters.serviceConnection }}
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "##vso[task.setvariable variable=currentSpId;]$servicePrincipalId"
+          echo "##vso[task.setvariable variable=currentSpKey;issecret=true]$servicePrincipalKey"
+          echo "##vso[task.setvariable variable=currentSpTenant;]$tenantId"
+        addSpnToEnvironment: true
+    # Step 3: Login to Azure, get AKS credentials, convert config using 'azurecli'
+    - bash: |
+        az login --service-principal -u $(currentSpId) -p $(currentSpKey) --tenant $(currentSpTenant)
+        az aks get-credentials -n ${{ parameters.aksCluster }} -g ${{ parameters.resourceGroup }}
+        kubelogin convert-kubeconfig -l azurecli
+        echo Testing kubectl
+        kubectl get nodes       
+      displayName: Login using kubelogin
