@@ -29,6 +29,8 @@
         "redhat.vscode-yaml",
         "svelte.svelte-vscode",
         "yzhang.markdown-all-in-one",
-        "ZixuanChen.vitest-explorer"
+        "ZixuanChen.vitest-explorer",
+        "wayou.vscode-todo-highlight",
+        "csstools.postcss"
     ]
 }
