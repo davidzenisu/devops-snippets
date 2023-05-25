@@ -32,6 +32,7 @@
         "ZixuanChen.vitest-explorer",
         "wayou.vscode-todo-highlight",
         "csstools.postcss",
-        "GitHub.vscode-github-actions"
+        "GitHub.vscode-github-actions",
+        "ms-vscode.vscode-node-azure-pack"
     ]
 }
